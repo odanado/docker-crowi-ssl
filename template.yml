@@ -1,0 +1,49 @@
+version: '2'
+services:
+    crowi:
+        image: bakudankun/crowi:latest
+        ports:
+            - 80
+        links:
+            - mongo:db
+            - redis:redis
+            - elasticsearch:es
+        volumes:
+            - ./data:/data
+        environment:
+            - VIRTUAL_HOST=${VIRTUAL_HOST}
+            - PORT=80
+            - CERT_NAME=crowi
+
+    ssl_proxy:
+        image: jwilder/nginx-proxy
+        ports:
+            - 80:80
+            - 443:443
+        volumes:
+            - /var/run/docker.sock:/tmp/docker.sock:ro
+            - ./certs:/etc/nginx/certs
+        links:
+            - crowi:crowi
+
+    mongo:
+        image: mongo
+        volumes:
+            - ./backup/mongo:/data/db
+
+    redis:
+        image: redis:alpine
+        volumes:
+            - ./backup/redis:/data
+
+    elasticsearch:
+        image: elasticsearch:2
+            # プラグインのKuromojiが必要
+        entrypoint:
+            - bash
+            - -c
+            - >-
+                bin/plugin list | grep -q analysis-kuromoji
+                || bin/plugin install analysis-kuromoji
+                && exec /docker-entrypoint.sh $$0 $$@
+        command: elasticsearch
